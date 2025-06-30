@@ -1,6 +1,4 @@
-[![Import Blueprint: Automation](https://img.shields.io/badge/Home%20Assistant-Import%20Automation-blue?logo=home-assistant)](https://my.home-assistant.io/redirect/blueprint_import/?repository_url=https://github.com/Ratoka/homeassistant-inovelli-hue-blueprints&filepath=blueprints/automation/inovelli/hue_dimmer_zha_unified.yaml)
-
-[![Import Blueprint: Script](https://img.shields.io/badge/Home%20Assistant-Import%20Script-blue?logo=home-assistant)](https://my.home-assistant.io/redirect/blueprint_import/?repository_url=https://github.com/Ratoka/homeassistant-inovelli-hue-blueprints&filepath=blueprints/script/inovelli/dim_hue_room_lights.yaml)
+[![Import Blueprint](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?repository_url=https://github.com/Ratoka/home-assistant-hue-inovelli-blueprints)
 
 # 🏠 Home Assistant Inovelli Hue Blueprints
 
