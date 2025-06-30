@@ -1,66 +1,76 @@
 blueprint:
   name: Hue Paddle Dimming + Scene Cycling (Unified ZHA Event)
   description: >
-    📦 Unified automation blueprint for Inovelli Blue switches using ZHA.
+    🎯 All-in-one automation for Inovelli Blue switches (ZHA) and Hue Rooms/Zones
 
-    ✅ Features:
-      - Paddle hold: dims room lights up/down via input_boolean + dynamic script
-      - Paddle release: stops dimming loop
-      - Button 3 press/hold: cycles forward/backward through Hue scenes
-      - Light turned on: optionally activates a default scene
-      - Logs detailed errors if required helpers or scenes are missing
+    ✅ Paddle tap → On/Off  
+    ✅ Paddle hold/release → Smooth dimming  
+    ✅ Side button (button 3) → Cycle Hue scenes  
+    ✅ Light turned on → (optional) activate default scene  
+    ✅ Configurable brightness step (percent)
 
-    🔧 Required Helpers per Room (e.g. for 'OfficeFan'):
-      - input_boolean.dimmer_officefan → controls dimming loop
-      - input_number.scene_index_officefan → tracks current scene index for cycling
-
-    💡 Required Hue Scenes:
-      - scene.officefan_<scene_name> — all scenes must follow this format for discovery
-
-    📋 Notes:
-      - Scenes are discovered dynamically using the room name you provide
-      - Helper names must use lowercase `room` value to match entity IDs
+    🔧 Requires:
+      - light.<room>
+      - input_boolean.dimmer_<room>
+      - input_number.scene_index_<room>
+      - scenes: scene.<room>_<name>
 
   domain: automation
 
   input:
     switch_device:
-      name: Inovelli Switch
+      name: Inovelli Switch (ZHA)
       selector:
         device:
           integration: zha
 
-    room:
-      name: Room Name
+    light_entity:
+      name: Light Group (Hue Room or Zone)
       description: >
-        Used to resolve entity IDs:
-        - light.<room> (Hue room or zone)
-        - input_boolean.dimmer_<room>
-        - input_number.scene_index_<room>
-        Must use lowercase for helper names.
+        The `light.<room>` entity to control.  
+        Used for on/off, dimming, and default scene trigger.
       selector:
-        text:
+        entity:
+          filter:
+            domain: light
 
     dimming_script:
       name: Dimming Script
-      description: Script created from "Hue Room Dimmer - Dynamic Up/Down"
+      description: Script from "Hue Room Dimmer - Dynamic Up/Down"
       selector:
         entity:
           domain: script
 
+    brightness_step:
+      name: Brightness Step (%)
+      description: >
+        How much brightness should increase/decrease per dimming tick.  
+        Passed to dimming script.
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 50
+          step: 1
+          unit_of_measurement: "%"
+
     default_scene_enabled:
       name: Enable Default Scene
-      description: If true, the selected scene will activate when light.<room> turns on
+      description: >
+        If enabled, a scene will activate when the light turns on.
       default: false
       selector:
         boolean:
 
     default_scene:
       name: Default Scene
-      description: Hue scene to activate when light turns on (e.g. scene.officefan_relax)
+      description: >
+        Full entity ID of the Hue scene to activate  
+        (e.g. `scene.officefan_relax`).  
+        Must match light group room name (see Developer Tools → States).
+      default: ""
       selector:
-        entity:
-          domain: scene
+        text:
 
 trigger:
   - platform: event
@@ -68,14 +78,14 @@ trigger:
     event_data:
       device_id: !input switch_device
   - platform: state
-    entity_id: >
-      {{ 'light.' ~ iif(room is defined, room, 'unknown') }}
+    entity_id: !input light_entity
     from: "off"
     to: "on"
     id: light_on_trigger
 
 variables:
-  room: !input room
+  light_entity: !input light_entity
+  room: "{{ light_entity.split('.')[1] }}"
   room_lower: "{{ room | lower }}"
   dimmer_flag: "input_boolean.dimmer_{{ room_lower }}"
   scene_index: "input_number.scene_index_{{ room_lower }}"
@@ -84,6 +94,7 @@ variables:
     {{ states.scene | map(attribute='entity_id') | select('search', prefix) | list | sort }}
   default_scene_enabled: !input default_scene_enabled
   default_scene: !input default_scene
+  brightness_step: !input brightness_step
   command: "{{ trigger.event.data.command if trigger.platform == 'event' else '' }}"
   direction: >-
     {% if 'button_1' in command %}Down
@@ -93,18 +104,27 @@ variables:
   is_release: "{{ 'release' in command }}"
   is_button_3_press: "{{ command == 'button_3_press' }}"
   is_button_3_hold: "{{ command == 'button_3_hold' }}"
+  is_button_1_press: "{{ command == 'button_1_press' }}"
+  is_button_2_press: "{{ command == 'button_2_press' }}"
   is_light_on_trigger: "{{ trigger.id == 'light_on_trigger' }}"
 
 action:
   - choose:
 
-      # 🔆 Dimming Hold
+      - conditions: "{{ is_button_1_press }}"
+        sequence:
+          - service: light.turn_off
+            target:
+              entity_id: "{{ light_entity }}"
+
+      - conditions: "{{ is_button_2_press }}"
+        sequence:
+          - service: light.turn_on
+            target:
+              entity_id: "{{ light_entity }}"
+
       - conditions: "{{ is_hold and direction in ['Up', 'Down'] }}"
         sequence:
-          - service: system_log.write
-            data:
-              level: warning
-              message: "▶️ Hold detected — turning ON {{ dimmer_flag }}"
           - service: input_boolean.turn_on
             target:
               entity_id: "{{ dimmer_flag }}"
@@ -115,40 +135,36 @@ action:
               variables:
                 room: "{{ room }}"
                 direction: "{{ direction }}"
+                brightness_step: "{{ brightness_step }}"
 
-      # ⏹ Dimming Release
       - conditions: "{{ is_release }}"
         sequence:
-          - service: system_log.write
-            data:
-              level: warning
-              message: "⏹ Release detected — turning OFF {{ dimmer_flag }}"
           - service: input_boolean.turn_off
             target:
               entity_id: "{{ dimmer_flag }}"
 
-      # 🎬 Default Scene on Light Turn-On
-      - conditions: "{{ is_light_on_trigger and default_scene_enabled }}"
+      - conditions: "{{ is_light_on_trigger and default_scene_enabled and default_scene != '' }}"
         sequence:
           - choose:
+              - conditions: "{{ default_scene == '' }}"
+                sequence:
+                  - service: system_log.write
+                    data:
+                      level: warning
+                      message: "⚠️ Default scene is enabled but not specified"
               - conditions: >
                   {{ default_scene.split('.')[-1] not in (available_scenes | map('split', '.') | map('last') | list) }}
                 sequence:
                   - service: system_log.write
                     data:
                       level: error
-                      message: "❌ Default scene '{{ default_scene }}' not found in scenes for '{{ room_lower }}'"
+                      message: "❌ Default scene '{{ default_scene }}' not found for '{{ room_lower }}'"
               - conditions: []
                 sequence:
                   - service: scene.turn_on
                     target:
                       entity_id: "{{ default_scene }}"
-                  - service: system_log.write
-                    data:
-                      level: warning
-                      message: "🌟 Activated default scene: {{ default_scene }}"
 
-      # ➡️ Scene Next
       - conditions: "{{ is_button_3_press }}"
         sequence:
           - choose:
@@ -157,13 +173,13 @@ action:
                   - service: system_log.write
                     data:
                       level: error
-                      message: "❌ No scenes found for '{{ room_lower }}'. Expected scene.{{ room_lower }}_*"
+                      message: "❌ No scenes found for '{{ room_lower }}'"
               - conditions: "{{ states(scene_index) == 'unknown' }}"
                 sequence:
                   - service: system_log.write
                     data:
                       level: error
-                      message: "❌ Missing helper: {{ scene_index }}"
+                      message: "❌ Missing input_number: {{ scene_index }}"
               - conditions: []
                 sequence:
                   - variables:
@@ -177,12 +193,7 @@ action:
                   - service: scene.turn_on
                     target:
                       entity_id: "{{ next_scene }}"
-                  - service: system_log.write
-                    data:
-                      level: warning
-                      message: "🎬 Scene Next: {{ next_scene }}"
 
-      # ⬅️ Scene Previous
       - conditions: "{{ is_button_3_hold }}"
         sequence:
           - choose:
@@ -191,13 +202,13 @@ action:
                   - service: system_log.write
                     data:
                       level: error
-                      message: "❌ No scenes found for '{{ room_lower }}'. Expected scene.{{ room_lower }}_*"
+                      message: "❌ No scenes found for '{{ room_lower }}'"
               - conditions: "{{ states(scene_index) == 'unknown' }}"
                 sequence:
                   - service: system_log.write
                     data:
                       level: error
-                      message: "❌ Missing helper: {{ scene_index }}"
+                      message: "❌ Missing input_number: {{ scene_index }}"
               - conditions: []
                 sequence:
                   - variables:
@@ -211,7 +222,3 @@ action:
                   - service: scene.turn_on
                     target:
                       entity_id: "{{ prev_scene }}"
-                  - service: system_log.write
-                    data:
-                      level: warning
-                      message: "🎬 Scene Previous: {{ prev_scene }}"

@@ -4,46 +4,48 @@
 
 # 🏡 Home Assistant Inovelli Hue Blueprints
 
-This repository contains reusable, dynamic blueprints for combining **Inovelli paddle dimmers** (via ZHA) with **Philips Hue lights and scenes** — featuring adaptive dimming, button-based scene cycling, and default scene recall.
-
-These automations are purpose-built for flexible, state-aware lighting control that updates as your Hue rooms and scenes evolve.
+Reusable, dynamic blueprints for combining **Inovelli paddle dimmers** (via ZHA) with **Philips Hue lights and scenes**. Features include adaptive dimming, button-based scene cycling, default scene recall, and robust state tracking.
 
 ---
 
 ## ✨ Features
 
-### 💡 Unified Paddle Dimming
-- Paddle **hold** = dim up or down smoothly
-- Paddle **release** = stop dimming immediately
-- Dynamic dimming via `input_boolean.dimmer_<room>`
+### 💡 Paddle Dimming (Hold/Release)
+- **Hold up/down**: Smoothly dims Hue room lights up or down
+- **Release**: Instantly stops dimming
+- Dimming is managed via a dedicated script and `input_boolean.dimmer_<room>`
 
 ### 🎬 Scene Cycling (Button 3)
-- Button **3 press** = cycle forward through Hue scenes
-- Button **3 hold** = cycle backward
-- Scenes discovered dynamically for each Hue room
-- State tracked using `input_number.scene_index_<room>`
+- **Button 3 press**: Cycles forward through all Hue scenes for the room
+- **Button 3 hold**: Cycles backward through scenes
+- Scenes are discovered dynamically (no hardcoding)
+- Scene index tracked with `input_number.scene_index_<room>`
 
 ### 🌟 Default Scene Activation
-- Optionally activate a scene when `light.<room>` turns on
-- Works whether light is triggered by switch, app, or automation
+- Optionally activate a default scene when `light.<room>` turns on
+- Works with switch, app, or automation triggers
 
-### 🧠 Clean Entity Naming Convention
-- `light.<room>` for Hue Room or Zone
-- `input_boolean.dimmer_<room>` for dimming control
-- `input_number.scene_index_<room>` for scene tracking
+### 🧠 Entity Naming Convention
+- `light.<room>`: Hue Room or Zone group
+- `input_boolean.dimmer_<room>`: Dimming control helper
+- `input_number.scene_index_<room>`: Scene index tracker
+- `scene.<room>_<name>`: Hue scenes (must follow this pattern)
+
+### 📝 Logging & Troubleshooting
+- Detailed logbook entries for all actions and state changes
 
 ---
 
 ## 🛠 Requirements
 
-For each room (e.g. `OfficeFan`), create the following:
+For each room (e.g. `Office`), create the following:
 
 | Entity | Example | Purpose |
 |--------|---------|---------|
-| Hue Light Group | `light.officefan` | Hue Room (sync target) |
-| `input_boolean` | `input_boolean.dimmer_officefan` | Controls loop for dimming script |
-| `input_number` | `input_number.scene_index_officefan` | Tracks active scene index |
-| Hue Scenes | `scene.officefan_relax`, etc. | Must follow naming pattern: `scene.<room>_<name>` |
+| Hue Light Group | `light.office` | Hue Room (sync target) |
+| `input_boolean` | `input_boolean.dimmer_office` | Controls dimming script loop |
+| `input_number` | `input_number.scene_index_office` | Tracks active scene index |
+| Hue Scenes | `scene.office_relax`, `scene.office_energize`, etc. | Must follow `scene.<room>_<name>` |
 
 ---
 
@@ -53,36 +55,36 @@ For each room (e.g. `OfficeFan`), create the following:
 Path: `blueprints/automation/inovelli/hue_dimmer_zha_unified.yaml`
 
 Handles:
-- Dimming start/stop via paddle
+- Paddle dimming (hold/release)
 - Scene cycling (forward/back)
 - Default scene activation
-- Detailed logging for troubleshooting
+- Logging for troubleshooting
 
 ### 🔧 `Hue Room Dimmer - Dynamic Up/Down`
 Path: `blueprints/script/inovelli/dim_hue_room_lights.yaml`
 
 Handles:
-- Smooth dimming loop
-- Customizable brightness step
+- Smooth dimming loop for a Hue room
+- Customizable brightness step and direction
 - Parameterized by `room`, `direction`, and `step`
 
 ---
 
 ## 🧪 Example Use Case
 
-1. Create a room in the Hue app named `OfficeFan`
-2. Add matching helpers:
-   - `input_boolean.dimmer_officefan`
-   - `input_number.scene_index_officefan`
-3. Add or sync scenes like `scene.officefan_relax`, `scene.officefan_energize`
-4. Create a script from the dimmer blueprint with room = `OfficeFan`
+1. Create a room in the Hue app named `Office`
+2. Add matching helpers in Home Assistant:
+   - `input_boolean.dimmer_office`
+   - `input_number.scene_index_office`
+3. Add or sync scenes like `scene.office_relax`, `scene.office_energize`
+4. Create a script from the dimmer blueprint with `room = Office`
 5. Create an automation from the unified automation blueprint and link it to the script
 
 Now your Inovelli switch will:
-- Dim the Hue room precisely on hold
-- Stop on release
+- Dim the Hue room lights smoothly on paddle hold
+- Stop dimming on release
 - Cycle through available scenes using button 3
-- Activate a default scene (if configured)
+- Optionally activate a default scene when the room is turned on
 
 ---
 
