@@ -1,0 +1,217 @@
+blueprint:
+  name: Hue Paddle Dimming + Scene Cycling (Unified ZHA Event)
+  description: >
+    📦 Unified automation blueprint for Inovelli Blue switches using ZHA.
+
+    ✅ Features:
+      - Paddle hold: dims room lights up/down via input_boolean + dynamic script
+      - Paddle release: stops dimming loop
+      - Button 3 press/hold: cycles forward/backward through Hue scenes
+      - Light turned on: optionally activates a default scene
+      - Logs detailed errors if required helpers or scenes are missing
+
+    🔧 Required Helpers per Room (e.g. for 'OfficeFan'):
+      - input_boolean.dimmer_officefan → controls dimming loop
+      - input_number.scene_index_officefan → tracks current scene index for cycling
+
+    💡 Required Hue Scenes:
+      - scene.officefan_<scene_name> — all scenes must follow this format for discovery
+
+    📋 Notes:
+      - Scenes are discovered dynamically using the room name you provide
+      - Helper names must use lowercase `room` value to match entity IDs
+
+  domain: automation
+
+  input:
+    switch_device:
+      name: Inovelli Switch
+      selector:
+        device:
+          integration: zha
+
+    room:
+      name: Room Name
+      description: >
+        Used to resolve entity IDs:
+        - light.<room> (Hue room or zone)
+        - input_boolean.dimmer_<room>
+        - input_number.scene_index_<room>
+        Must use lowercase for helper names.
+      selector:
+        text:
+
+    dimming_script:
+      name: Dimming Script
+      description: Script created from "Hue Room Dimmer - Dynamic Up/Down"
+      selector:
+        entity:
+          domain: script
+
+    default_scene_enabled:
+      name: Enable Default Scene
+      description: If true, the selected scene will activate when light.<room> turns on
+      default: false
+      selector:
+        boolean:
+
+    default_scene:
+      name: Default Scene
+      description: Hue scene to activate when light turns on (e.g. scene.officefan_relax)
+      selector:
+        entity:
+          domain: scene
+
+trigger:
+  - platform: event
+    event_type: zha_event
+    event_data:
+      device_id: !input switch_device
+  - platform: state
+    entity_id: >
+      {{ 'light.' ~ iif(room is defined, room, 'unknown') }}
+    from: "off"
+    to: "on"
+    id: light_on_trigger
+
+variables:
+  room: !input room
+  room_lower: "{{ room | lower }}"
+  dimmer_flag: "input_boolean.dimmer_{{ room_lower }}"
+  scene_index: "input_number.scene_index_{{ room_lower }}"
+  available_scenes: >-
+    {% set prefix = 'scene.' ~ room_lower ~ '_' %}
+    {{ states.scene | map(attribute='entity_id') | select('search', prefix) | list | sort }}
+  default_scene_enabled: !input default_scene_enabled
+  default_scene: !input default_scene
+  command: "{{ trigger.event.data.command if trigger.platform == 'event' else '' }}"
+  direction: >-
+    {% if 'button_1' in command %}Down
+    {% elif 'button_2' in command %}Up
+    {% else %}unknown{% endif %}
+  is_hold: "{{ 'hold' in command }}"
+  is_release: "{{ 'release' in command }}"
+  is_button_3_press: "{{ command == 'button_3_press' }}"
+  is_button_3_hold: "{{ command == 'button_3_hold' }}"
+  is_light_on_trigger: "{{ trigger.id == 'light_on_trigger' }}"
+
+action:
+  - choose:
+
+      # 🔆 Dimming Hold
+      - conditions: "{{ is_hold and direction in ['Up', 'Down'] }}"
+        sequence:
+          - service: system_log.write
+            data:
+              level: warning
+              message: "▶️ Hold detected — turning ON {{ dimmer_flag }}"
+          - service: input_boolean.turn_on
+            target:
+              entity_id: "{{ dimmer_flag }}"
+          - service: script.turn_on
+            target:
+              entity_id: !input dimming_script
+            data:
+              variables:
+                room: "{{ room }}"
+                direction: "{{ direction }}"
+
+      # ⏹ Dimming Release
+      - conditions: "{{ is_release }}"
+        sequence:
+          - service: system_log.write
+            data:
+              level: warning
+              message: "⏹ Release detected — turning OFF {{ dimmer_flag }}"
+          - service: input_boolean.turn_off
+            target:
+              entity_id: "{{ dimmer_flag }}"
+
+      # 🎬 Default Scene on Light Turn-On
+      - conditions: "{{ is_light_on_trigger and default_scene_enabled }}"
+        sequence:
+          - choose:
+              - conditions: >
+                  {{ default_scene.split('.')[-1] not in (available_scenes | map('split', '.') | map('last') | list) }}
+                sequence:
+                  - service: system_log.write
+                    data:
+                      level: error
+                      message: "❌ Default scene '{{ default_scene }}' not found in scenes for '{{ room_lower }}'"
+              - conditions: []
+                sequence:
+                  - service: scene.turn_on
+                    target:
+                      entity_id: "{{ default_scene }}"
+                  - service: system_log.write
+                    data:
+                      level: warning
+                      message: "🌟 Activated default scene: {{ default_scene }}"
+
+      # ➡️ Scene Next
+      - conditions: "{{ is_button_3_press }}"
+        sequence:
+          - choose:
+              - conditions: "{{ available_scenes | length == 0 }}"
+                sequence:
+                  - service: system_log.write
+                    data:
+                      level: error
+                      message: "❌ No scenes found for '{{ room_lower }}'. Expected scene.{{ room_lower }}_*"
+              - conditions: "{{ states(scene_index) == 'unknown' }}"
+                sequence:
+                  - service: system_log.write
+                    data:
+                      level: error
+                      message: "❌ Missing helper: {{ scene_index }}"
+              - conditions: []
+                sequence:
+                  - variables:
+                      current: "{{ states(scene_index) | int(0) }}"
+                      next: "{{ (current + 1) % (available_scenes | length) }}"
+                      next_scene: "{{ available_scenes[next] }}"
+                  - service: input_number.set_value
+                    data:
+                      entity_id: "{{ scene_index }}"
+                      value: "{{ next }}"
+                  - service: scene.turn_on
+                    target:
+                      entity_id: "{{ next_scene }}"
+                  - service: system_log.write
+                    data:
+                      level: warning
+                      message: "🎬 Scene Next: {{ next_scene }}"
+
+      # ⬅️ Scene Previous
+      - conditions: "{{ is_button_3_hold }}"
+        sequence:
+          - choose:
+              - conditions: "{{ available_scenes | length == 0 }}"
+                sequence:
+                  - service: system_log.write
+                    data:
+                      level: error
+                      message: "❌ No scenes found for '{{ room_lower }}'. Expected scene.{{ room_lower }}_*"
+              - conditions: "{{ states(scene_index) == 'unknown' }}"
+                sequence:
+                  - service: system_log.write
+                    data:
+                      level: error
+                      message: "❌ Missing helper: {{ scene_index }}"
+              - conditions: []
+                sequence:
+                  - variables:
+                      current: "{{ states(scene_index) | int(0) }}"
+                      prev: "{{ (current - 1) % (available_scenes | length) }}"
+                      prev_scene: "{{ available_scenes[prev] }}"
+                  - service: input_number.set_value
+                    data:
+                      entity_id: "{{ scene_index }}"
+                      value: "{{ prev }}"
+                  - service: scene.turn_on
+                    target:
+                      entity_id: "{{ prev_scene }}"
+                  - service: system_log.write
+                    data:
+                      level: warning
+                      message: "🎬 Scene Previous: {{ prev_scene }}"
