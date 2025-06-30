@@ -34,6 +34,28 @@ This repository contains **dynamic, reusable blueprints** for integrating Inovel
 
 ---
 
+## Overview
+![Device Overview](/docs/assets/DeviceFlow.png)
+
+## 🚀 Getting Started
+
+1. **Create a Hue Room** in the Hue app (e.g. `Office`).
+2. **Create Helpers** in Home Assistant:
+   - `input_boolean.dimmer_office`
+   - `input_number.scene_index_office`
+3. **Add Hue Scenes to the room** (e.g. `scene.office_relax`, `scene.office_reading`).
+4. **Add Inovelli Blue Switch** in HomeAssistant ZHA 
+5. **Import Blueprints** from this repo:
+   - `hue_dimmer_zha_unified.yaml` (automation)
+   - `dim_hue_room_lights.yaml` (script)
+6. **Create the script from the blueprint** in HomeAssistant using the blueprint, create the script (reference your first 
+light/swith, this will be dynamically updated by the automation depending on what button is pressed)
+7. **Create the automation** in HomeAssistant using the blueprint.  Reference the switch, room/zone, script from step 5., 
+and desired brightness step (faster/slower dimming)
+8. **Enjoy**
+
+---
+
 ## 🛠️ Requirements
 
 For each room (e.g. `Office`), create:
@@ -131,6 +153,58 @@ Now your Inovelli switch will:
 - Button 3 press/hold: Cycle through Hue scenes
 
 ---
+
+## ⚠️ Common Pitfalls
+
+| Issue | Fix |
+|-------|-----|
+| Scenes not cycling | Ensure scenes follow `scene.<room>_<name>` pattern |
+| Dimming not working | Confirm `input_boolean.dimmer_<room>` exists and is toggled |
+| Scene not restoring color | Use `scene.apply` instead of `light.turn_on` |
+| ZHA events not triggering | Verify correct event IDs in automation trigger |
+
+---
+
+## 🛠️ Troubleshooting: Debug Logging for Inovelli Hue Blueprints
+
+These blueprints include detailed logging to help diagnose issues with dimming, scene cycling, and helper state tracking. Here's how to interpret and leverage the logs effectively.
+
+---
+
+## 🔍 What the Logs Show (Example: Office Room)
+
+The blueprints output clear debug messages for key actions and decisions. Below are examples you'll see in the logs when using the `"Office"` room:
+
+- **Scene Cycling Events**  
+
+Cycling to scene.office_relax (index 1 of 4)
+
+- **Helper Validation**  
+
+input_boolean.dimmer_office is off — skipping dimming loop
+
+- **Scene Restoration Attempts**  
+
+Restoring previous scene: scene.office_reading
+
+- **Error Handling**  
+
+Scene scene.office_party not found — skipping
+
+These logs are designed to provide context-aware feedback, especially when testing dynamic behavior like long-press dimming, scene cycling, or light mode fallbacks.
+
+### 📋 Where to Find Logs
+
+- Logs are output to **Home Assistant’s system log** (`Configuration > Settings > System > Logs`)
+- Enable debug logging for automations by adding this to your `configuration.yaml`:
+
+```yaml
+logger:
+  default: warning
+  logs:
+    homeassistant.components.automation: debug
+    homeassistant.components.script: debug
+
 
 ## 📜 License
 

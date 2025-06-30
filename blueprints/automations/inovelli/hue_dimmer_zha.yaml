@@ -6,7 +6,7 @@ blueprint:
     ✅ Paddle tap → On/Off  
     ✅ Paddle hold/release → Smooth dimming  
     ✅ Side button (button 3) → Cycle Hue scenes  
-    ✅ Light turned on → (optional) activate default scene  
+    ✅ Light turned on → (optional) activate default scene - (short delay on light on) 
     ✅ Configurable brightness step (percent)
 
     🔧 Requires:
