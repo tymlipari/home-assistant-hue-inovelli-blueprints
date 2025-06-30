@@ -1,3 +1,7 @@
+[![Import Blueprint: Automation](https://img.shields.io/badge/Home%20Assistant-Import%20Automation-blue?logo=home-assistant)](https://my.home-assistant.io/redirect/blueprint_import/?repository_url=https://github.com/Ratoka/homeassistant-inovelli-hue-blueprints&filepath=blueprints/automation/inovelli/hue_dimmer_zha_unified.yaml)
+
+[![Import Blueprint: Script](https://img.shields.io/badge/Home%20Assistant-Import%20Script-blue?logo=home-assistant)](https://my.home-assistant.io/redirect/blueprint_import/?repository_url=https://github.com/Ratoka/homeassistant-inovelli-hue-blueprints&filepath=blueprints/script/inovelli/dim_hue_room_lights.yaml)
+
 # 🏡 Home Assistant Inovelli Hue Blueprints
 
 This repository contains reusable, dynamic blueprints for combining **Inovelli paddle dimmers** (via ZHA) with **Philips Hue lights and scenes** — featuring adaptive dimming, button-based scene cycling, and default scene recall.
