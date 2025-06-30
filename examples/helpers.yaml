@@ -1,0 +1,16 @@
+# helpers.yaml — Example helper entities for Hue + Inovelli Blue integration (Room: Office)
+
+input_boolean:
+  dimmer_office:
+    name: Dimmer - Office
+    icon: mdi:lightbulb-on-outline
+    initial: false
+
+input_number:
+  scene_index_office:
+    name: Scene Index - Office
+    initial: 0
+    min: 0
+    max: 10  # Set this based on the number of scenes in your room
+    step: 1
+    mode: slider
