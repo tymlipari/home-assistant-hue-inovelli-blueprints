@@ -1,19 +1,14 @@
 blueprint:
-  name: Hue Paddle Dimming + Scene Cycling (Unified ZHA Event)
+  name: Hue Paddle Dimming + Scene Cycling (Unified ZHA Event with Sync)
   description: >
     🎯 All-in-one automation for Inovelli Blue switches (ZHA) and Hue Rooms/Zones
 
     ✅ Paddle tap → On/Off  
     ✅ Paddle hold/release → Smooth dimming  
-    ✅ Side button (button 3) → Cycle Hue scenes  
-    ✅ Light turned on → (optional) activate default scene - (short delay on light on) 
+    ✅ Side button (button 3) → Cycle Hue scenes (forward/backward)  
+    ✅ Light turned on → (optional) activate default scene  
+    ✅ Sync switch and light state via derived input_boolean.sync_<room>  
     ✅ Configurable brightness step (percent)
-
-    🔧 Requires:
-      - light.<room>
-      - input_boolean.dimmer_<room>
-      - input_number.scene_index_<room>
-      - scenes: scene.<room>_<name>
 
   domain: automation
 
@@ -24,29 +19,27 @@ blueprint:
         device:
           integration: zha
 
-    light_entity:
-      name: Light Group (Hue Room or Zone)
-      description: >
-        The `light.<room>` entity to control.  
-        Used for on/off, dimming, and default scene trigger.
+    switch_entity:
+      name: Inovelli Switch Entity (the light entity of the switch)
       selector:
         entity:
-          filter:
-            domain: light
+          domain: light
+
+    light_entity:
+      name: Light Group (Hue Room or Zone)
+      selector:
+        entity:
+          domain: light
 
     dimming_script:
       name: Dimming Script
-      description: Script from "Hue Room Dimmer - Dynamic Up/Down"
       selector:
         entity:
           domain: script
 
     brightness_step:
       name: Brightness Step (%)
-      description: >
-        How much brightness should increase/decrease per dimming tick.  
-        Passed to dimming script.
-      default: 5
+      default: 10
       selector:
         number:
           min: 1
@@ -56,18 +49,12 @@ blueprint:
 
     default_scene_enabled:
       name: Enable Default Scene
-      description: >
-        If enabled, a scene will activate when the light turns on.
       default: false
       selector:
         boolean:
 
     default_scene:
       name: Default Scene
-      description: >
-        Full entity ID of the Hue scene to activate  
-        (e.g. `scene.officefan_relax`).  
-        Must match light group room name (see Developer Tools → States).
       default: ""
       selector:
         text:
@@ -77,26 +64,39 @@ trigger:
     event_type: zha_event
     event_data:
       device_id: !input switch_device
+
   - platform: state
     entity_id: !input light_entity
     from: "off"
     to: "on"
     id: light_on_trigger
 
+  - platform: state
+    entity_id: !input light_entity
+    from: "on"
+    to: "off"
+    id: light_off_trigger
+
+  - platform: state
+    entity_id: !input switch_entity
+    id: switch_state_change
+
 variables:
   light_entity: !input light_entity
+  switch_entity: !input switch_entity
   room: "{{ light_entity.split('.')[1] }}"
   room_lower: "{{ room | lower }}"
   dimmer_flag: "input_boolean.dimmer_{{ room_lower }}"
+  sync_flag: "input_boolean.sync_{{ room_lower }}"
   scene_index: "input_number.scene_index_{{ room_lower }}"
-  available_scenes: >-
+  available_scenes: >
     {% set prefix = 'scene.' ~ room_lower ~ '_' %}
     {{ states.scene | map(attribute='entity_id') | select('search', prefix) | list | sort }}
   default_scene_enabled: !input default_scene_enabled
   default_scene: !input default_scene
   brightness_step: !input brightness_step
   command: "{{ trigger.event.data.command if trigger.platform == 'event' else '' }}"
-  direction: >-
+  direction: >
     {% if 'button_1' in command %}Down
     {% elif 'button_2' in command %}Up
     {% else %}unknown{% endif %}
@@ -107,21 +107,23 @@ variables:
   is_button_1_press: "{{ command == 'button_1_press' }}"
   is_button_2_press: "{{ command == 'button_2_press' }}"
   is_light_on_trigger: "{{ trigger.id == 'light_on_trigger' }}"
+  is_light_off_trigger: "{{ trigger.id == 'light_off_trigger' }}"
+  is_switch_state_change: "{{ trigger.id == 'switch_state_change' }}"
 
 action:
   - choose:
 
       - conditions: "{{ is_button_1_press }}"
         sequence:
-          - service: light.turn_off
+          - service: input_boolean.turn_off
             target:
-              entity_id: "{{ light_entity }}"
+              entity_id: "{{ sync_flag }}"
 
       - conditions: "{{ is_button_2_press }}"
         sequence:
-          - service: light.turn_on
+          - service: input_boolean.turn_on
             target:
-              entity_id: "{{ light_entity }}"
+              entity_id: "{{ sync_flag }}"
 
       - conditions: "{{ is_hold and direction in ['Up', 'Down'] }}"
         sequence:
@@ -143,27 +145,37 @@ action:
             target:
               entity_id: "{{ dimmer_flag }}"
 
-      - conditions: "{{ is_light_on_trigger and default_scene_enabled and default_scene != '' }}"
+      - conditions: "{{ is_light_on_trigger }}"
         sequence:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: "{{ sync_flag }}"
           - choose:
-              - conditions: "{{ default_scene == '' }}"
-                sequence:
-                  - service: system_log.write
-                    data:
-                      level: warning
-                      message: "⚠️ Default scene is enabled but not specified"
-              - conditions: >
-                  {{ default_scene.split('.')[-1] not in (available_scenes | map('split', '.') | map('last') | list) }}
-                sequence:
-                  - service: system_log.write
-                    data:
-                      level: error
-                      message: "❌ Default scene '{{ default_scene }}' not found for '{{ room_lower }}'"
-              - conditions: []
+              - conditions: "{{ default_scene_enabled and default_scene != '' }}"
                 sequence:
                   - service: scene.turn_on
                     target:
                       entity_id: "{{ default_scene }}"
+
+      - conditions: "{{ is_light_off_trigger }}"
+        sequence:
+          - service: input_boolean.turn_off
+            target:
+              entity_id: "{{ sync_flag }}"
+
+      - conditions: "{{ is_switch_state_change }}"
+        sequence:
+          - choose:
+              - conditions: "{{ states(switch_entity) == 'on' }}"
+                sequence:
+                  - service: input_boolean.turn_on
+                    target:
+                      entity_id: "{{ sync_flag }}"
+              - conditions: "{{ states(switch_entity) == 'off' }}"
+                sequence:
+                  - service: input_boolean.turn_off
+                    target:
+                      entity_id: "{{ sync_flag }}"
 
       - conditions: "{{ is_button_3_press }}"
         sequence:
@@ -222,3 +234,36 @@ action:
                   - service: scene.turn_on
                     target:
                       entity_id: "{{ prev_scene }}"
+
+  - choose:
+      - conditions: "{{ states(sync_flag) == 'on' }}"
+        sequence:
+          - choose:
+              - conditions: "{{ states(light_entity) != 'on' }}"
+                sequence:
+                  - service: light.turn_on
+                    target:
+                      entity_id: "{{ light_entity }}"
+          - choose:
+              - conditions: "{{ states(switch_entity) != 'on' }}"
+                sequence:
+                  - service: light.turn_on
+                    target:
+                      entity_id: "{{ switch_entity }}"
+
+      - conditions: "{{ states(sync_flag) == 'off' }}"
+        sequence:
+          - choose:
+              - conditions: "{{ states(light_entity) != 'off' }}"
+                sequence:
+                  - service: light.turn_off
+                    target:
+                      entity_id: "{{ light_entity }}"
+          - choose:
+              - conditions: "{{ states(switch_entity) != 'off' }}"
+                sequence:
+                  - service: light.turn_off
+                    target:
+                      entity_id: "{{ switch_entity }}"
+
+mode: restart

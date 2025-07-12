@@ -1,10 +1,12 @@
 # helpers.yaml — Example helper entities for Hue + Inovelli Blue integration (Room: Office)
 
 input_boolean:
-  dimmer_office:
-    name: Dimmer - Office
+  dimmer_masterbedroom:
+    name: Dimmer - Master Bedroom
     icon: mdi:lightbulb-on-outline
-    initial: false
+  
+  sync_masterbedroom:
+    name: Sync Master Bedroom
 
 input_number:
   scene_index_office:

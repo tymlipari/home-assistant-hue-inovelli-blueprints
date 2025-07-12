@@ -32,7 +32,7 @@ blueprint:
     brightness_step:
       name: Brightness Step (%)
       description: How much to increase/decrease per tick (1–50%)
-      default: 5
+      default: 10
       selector:
         number:
           min: 1
