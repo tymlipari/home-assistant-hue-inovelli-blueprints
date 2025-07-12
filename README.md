@@ -26,29 +26,32 @@ This repository contains **dynamic, reusable blueprints** for integrating Inovel
   - Tracks state with `input_number.scene_index_<room>`
 
 - **🧼 Clean Entity Naming Convention**
-  - `light.<room>` for Hue Room/Zone
-  - `input_boolean.dimmer_<room>` for dimming control
-  - `input_number.scene_index_<room>` for scene tracking
+  - Relies on the Hue room name (no spaces)
+  - Dynamically references needed helpers based on room name to ease deployment
 
 ---
 
 ## Overview
 ![Device Overview](/docs/assets/DeviceFlow.png)
 
+---
+
 ## 🚀 Getting Started
 
-1. **Create a Hue Room** in the Hue app (e.g. `Office`).
+1. **Create a Hue Room** in the Hue app (e.g. `MasterBedroom`).
 2. **Create Helpers** in Home Assistant:
-   - `input_boolean.dimmer_office`
-   - `input_number.scene_index_office`
-3. **Add Hue Scenes to the room** (e.g. `scene.office_relax`, `scene.office_reading`).
-4. **Add Inovelli Blue Switch** in HomeAssistant ZHA 
+   - `input_boolean.dimmer_masterbedroom`
+   - `input_boolean.sync_<room>`
+   - `input_number.scene_index_masterbedroom`
+3. **Add Hue Scenes to the room** in the Hue app (when you create the input number, the max number should be greater than the number of scenes you plan to have)
+4. **Add Inovelli Blue Switch** in HomeAssistant ZHA
+5. **Configure Switch** in HomeAssistant - enable the Smart Bulb feature 
 5. **Import Blueprints** from this repo:
-   - `hue_dimmer_zha_unified.yaml` (automation)
+   - `hue_dimmer_zha.yaml` (automation)
    - `dim_hue_room_lights.yaml` (script)
 6. **Create the script from the blueprint** in HomeAssistant using the blueprint, create the script (reference your first 
-light/swith, this will be dynamically updated by the automation depending on what button is pressed)
-7. **Create the automation** in HomeAssistant using the blueprint.  Reference the switch, room/zone, script from step 5., 
+light/swith, this will be dynamically updated by the each automation depending on what switch and button is pressed)
+7. **Create the automation** in HomeAssistant using the blueprint.  Reference the switch, room/zone, script from step 6., 
 and desired brightness step (faster/slower dimming)
 8. **Enjoy**
 
@@ -56,14 +59,15 @@ and desired brightness step (faster/slower dimming)
 
 ## 🛠️ Requirements
 
-For each room (e.g. `Office`), create:
+For each room (e.g. `MasterBedroom`), create:
 
-| Entity | Example | Purpose |
-|--------|---------|---------|
-| Hue Light Group | `light.office` | Hue Room/Zone |
-| Input Boolean | `input_boolean.dimmer_office` | Controls dimming loop |
-| Input Number | `input_number.scene_index_office` | Tracks active scene index |
-| Hue Scenes | `scene.office_relax`, etc. | Must follow `scene.<room>_<name>` pattern |
+| Entity | Example | Purpose | Where to Configure
+|--------|---------|---------|---------|
+| Hue Light Group | MasterBedroom | Hue Room/Zone that allows for multiple lights to be controlled and have scenes assigned | Hue App |
+| Input Boolean | `input_boolean.dimmer_masterbedroom` | Controls dimming loop | HomeAssistant |
+| Input Boolean | `input_boolean.sync_masterbedroom` | Holds the desired state of the light. When the light is toggled from the switch or app, this holds the lights state to sync to the devices.  (EG. If the light is turned on from the app, this also turns on the switch) | HomeAssistant |
+| Input Number | `input_number.scene_index_masterbedroom` | Tracks active scene index | HomeAssistant |
+| Hue Scenes | Relax | Creates a room/zone scene that can be acctived by the switch or app | Hue App |
 
 ---
 
@@ -71,7 +75,8 @@ For each room (e.g. `Office`), create:
 
 The inputs are used to allow a single automation to trigger on/off, dimming and scene rotations. 
 A set of inputs are required per switch/automation.  Depending on your personal preference, 
-these can be configured in the UI or via YAML.  Below provides steps for the HA UI.
+these can be configured in the UI or via YAML.  Below provides steps for the HA UI. Examples of  
+how to define the helps via YAML are listed under .examples/helpers.yaml.
 
 ### 🔘 input_boolean: Toggle Helper
 
@@ -80,7 +85,7 @@ This helper is used to enable or disable specific automations or modes.
 **Steps to create:**
 1. Go to **Settings > Devices & Services > Helpers**.
 2. Click **+ Add Helper**, then select **Toggle**.
-3. Set a name like `scene_cycling_enabled` or your preferred label.
+3. Set the name of the helper to match the requirements above
 4. Optionally set the icon (e.g., `mdi:lightbulb-group`).
 5. Click **Create**.
 
@@ -93,17 +98,10 @@ Use this helper to store values like the current scene index or delay intervals.
 2. Click **+ Add Helper**, then choose **Number**.
 3. Configure the details:
    - **Name**: e.g., `current_scene_index`
-   - **Minimum / Maximum**: Set appropriate range (e.g., 0–10)
+   - **Minimum / Maximum**: Set appropriate range for the maximum number of scenes you plan to have (e.g., 0–10, and can be updated later)
    - **Step size**: Set increment (e.g., 1)
    - **Unit of measurement**: Optional (e.g., none or "index")
 4. Click **Create**.
-
-### ✅ Tips
-- Use the names exactly as defined in your YAML blueprint for seamless automation.
-- You can rename or localize labels afterward—entity IDs remain the key reference.
-
-Once created, these helpers will appear under **Developer Tools > States**, and can be referenced directly in your automations or blueprints.
-
 
 ## 📁 Included Blueprints
 
@@ -125,30 +123,36 @@ Once created, these helpers will appear under **Developer Tools > States**, and 
 
 ---
 
-## 🧪 Example Setup: Room = `Office`
+## 🧪 Example Setup: Room = `MasterBedroom`
 
-1. In the Hue app, create a room named `Office`
+1. In the Hue app, create a room named `MasterBedroom`
+   - Add lights to the room
+   - Add scenes to the room
 2. In Home Assistant, create the following helpers:
-   - `input_boolean.dimmer_office`
-   - `input_number.scene_index_office`
-3. Add or sync Hue scenes like:
-   - `scene.office_relax`
-   - `scene.office_energize`
-4. Create a script from the **Hue Room Dimmer** blueprint:
-   - Set `room` to `Office`
-   - Set `direction` to `up` or `down`
-   - Set `step` to your preferred brightness increment
+   - `input_boolean.dimmer_masterbedroom`
+   - `input_boolean.sync_masterbedroom`
+   - `input_number.scene_index_masterbedroom`
+3. Create a script from the **Hue Room Dimmer** blueprint (only required for the first room):
+   - Set `Room Name` to `masterbedroom`
+   - Set `Direction` to `up` or `down`
+   - Set `Brightness Step (%)` to your preferred brightness increment
 5. Create an automation from the **Hue Paddle Dimming + Scene Cycling** blueprint:
-   - Set `room` to `Office`
-   - Link the dimmer script you created
-   - Optionally enable default scene activation
+   - Set `Inovelli Switch (ZHA)` to the Inovelli switch device, like `MasterBedroom_Switch`
+   - Set `Inovelli Switch Entity` to the light entity of the switch, like `MasterBedroom_Switch` and will have a lightbulb icon
+   - Set `Light Group (Hue Room or Zone)` to the Hue room/zones light entity, like `light.Masterbedroom`
+   - Set `Dimming Script` to the script created in step 3, this script is reusable and should be used for all instances of this automation
+   - Set `Brightness Step (%)` to the desired percentage - lower to slow and raise to speed dimming
+   - If you prefer a specific scene when turning on your light, enable `Enable Default Scene` - this does slow the light turning on, the light will turn on with 
+     the previously used scene, then will switch to your default.
+   - If enabling a default scene, enter the scene name for the room, like `scene.materbedroom_read`
 
 Now your Inovelli switch will:
-- Tap up: Turn on `light.office` (and optionally activate a default scene)
-- Tap down: Turn off `light.office`
-- Hold: Dim up/down smoothly
+- Tap up: Turn on `light.masterbedroom` (and optionally activate a default scene)
+- Tap down: Turn off `light.masterbedroom`
+- Hold: Dim up/down  
 - Release: Stop dimming
-- Button 3 press/hold: Cycle through Hue scenes
+- Button 3 press/hold: Cycle through Hue scenes press for forward, hold for backward
+- Your Inovelli switch will turn on/off when the light is turned on/off from the app or other integration
 
 ---
 
@@ -156,9 +160,9 @@ Now your Inovelli switch will:
 
 | Issue | Fix |
 |-------|-----|
-| Scenes not cycling | Ensure scenes follow `scene.<room>_<name>` pattern |
-| Dimming not working | Confirm `input_boolean.dimmer_<room>` exists and is toggled |
-| Scene not restoring color | Use `scene.apply` instead of `light.turn_on` |
+| Scenes not cycling | Scenes are named by the room when created.  If you changed the name of the room, scenes do not automatically recreate.  Open the room and click the (...), then select recreate entity IDs to rename the scenes in the room.  Also check the naming of the input number variable |
+| Dimming not working | Confirm `input_boolean.dimmer_<room>` exists and matches the room name |
+| Lights not turning on/off | Verify the room name has no spaces<br>If you renamed the room, recreate the entity IDs by navigating to the room, the click the (...), then select recreate entity IDs |
 | ZHA events not triggering | Verify correct event IDs in automation trigger |
 
 ---
@@ -203,6 +207,18 @@ logger:
     homeassistant.components.automation: debug
     homeassistant.components.script: debug
 
+---
+
+## 🔍 Resources
+
+- [Blueprint Exchange Thread](https://community.home-assistant.io/t/inovelli-blue-zha-hue-lights/910208)
+- [Inovelli Blue Devices](https://inovelli.com/collections/inovelli-blue-series)
+- [Inovelli Blue Devices ZHA Documentation](https://help.inovelli.com/en/articles/8452425-blue-series-dimmer-switch-setup-instructions-home-assistant-zha)
+- [Philips Hue Integration](https://www.home-assistant.io/integrations/hue/)
+- [Philips Hue App Documentation](https://www.philips-hue.com/en-us/explore-hue/apps/bridge)
+- Created by [@Ratoka](https://github.com/Ratoka)
+
+---
 
 ## 📜 License
 
