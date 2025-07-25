@@ -1,14 +1,18 @@
 blueprint:
   name: Hue Paddle Dimming + Scene Cycling (Unified ZHA Event with Sync)
-  description: >
-    🎯 All-in-one automation for Inovelli Blue switches (ZHA) and Hue Rooms/Zones
 
-    ✅ Paddle tap → On/Off  
-    ✅ Paddle hold/release → Smooth dimming  
-    ✅ Side button (button 3) → Cycle Hue scenes (forward/backward)  
-    ✅ Light turned on → (optional) activate default scene  
-    ✅ Sync switch and light state via derived input_boolean.sync_<room>  
-    ✅ Configurable brightness step (percent)
+description: >
+  🎯 All-in-one automation for Inovelli Blue switches (ZHA) and Hue Rooms/Zones
+
+  ✅ Paddle tap → On/Off  
+  ✅ Paddle hold/release → Smooth dimming  
+  ✅ Side button (button 3) → Cycle Hue scenes (forward/backward)  
+  ✅ Light turned on → (optional) activate default scene  
+  ✅ Sync switch and light state via derived input_boolean.sync_<room>  
+  ✅ Configurable brightness step (percent)  
+  ✅ Double-tap up → Set light to 100% brightness  
+  ✅ Double-tap down → Set light to 10% brightness
+
 
   domain: automation
 
@@ -102,17 +106,19 @@ variables:
     {% else %}unknown{% endif %}
   is_hold: "{{ 'hold' in command }}"
   is_release: "{{ 'release' in command }}"
+  is_button_1_press: "{{ command == 'button_1_press' }}"
+  is_button_1_double: "{{ command == 'button_1_double' }}"
+  is_button_2_press: "{{ command == 'button_2_press' }}"
+  is_button_2_double: "{{ command == 'button_2_double' }}"
   is_button_3_press: "{{ command == 'button_3_press' }}"
   is_button_3_hold: "{{ command == 'button_3_hold' }}"
-  is_button_1_press: "{{ command == 'button_1_press' }}"
-  is_button_2_press: "{{ command == 'button_2_press' }}"
+  is_button_3_double: "{{ command == 'button_3_double' }}"
   is_light_on_trigger: "{{ trigger.id == 'light_on_trigger' }}"
   is_light_off_trigger: "{{ trigger.id == 'light_off_trigger' }}"
   is_switch_state_change: "{{ trigger.id == 'switch_state_change' }}"
 
 action:
   - choose:
-
       - conditions: "{{ is_button_1_press }}"
         sequence:
           - service: input_boolean.turn_off
@@ -124,6 +130,40 @@ action:
           - service: input_boolean.turn_on
             target:
               entity_id: "{{ sync_flag }}"
+
+      - conditions: "{{ is_button_1_double }}"
+        sequence:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: "{{ sync_flag }}"
+          - service: light.turn_on
+            target:
+              entity_id: "{{ light_entity }}"
+            data:
+              brightness_pct: 10
+          - choose:
+              - conditions: "{{ states(switch_entity) != 'on' }}"
+                sequence:
+                  - service: light.turn_on
+                    target:
+                      entity_id: "{{ switch_entity }}"
+
+      - conditions: "{{ is_button_2_double }}"
+        sequence:
+          - service: input_boolean.turn_on
+            target:
+              entity_id: "{{ sync_flag }}"
+          - service: light.turn_on
+            target:
+              entity_id: "{{ light_entity }}"
+            data:
+              brightness_pct: 100
+          - choose:
+              - conditions: "{{ states(switch_entity) != 'on' }}"
+                sequence:
+                  - service: light.turn_on
+                    target:
+                      entity_id: "{{ switch_entity }}"
 
       - conditions: "{{ is_hold and direction in ['Up', 'Down'] }}"
         sequence:

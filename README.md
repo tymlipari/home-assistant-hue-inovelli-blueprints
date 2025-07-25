@@ -11,11 +11,13 @@ This repository contains **dynamic, reusable blueprints** for integrating Inovel
 
 ## ✨ Features
 
-- **💡 Light On/Off Control**
-  - Single tap up: Turns Hue room **on**
-  - Single tap down: Turns Hue room **off**
-  - Works regardless of whether lights were last controlled by switch, app, or automation
-  - Optional: Automatically activates a default scene when turning on
+- **💡 Light On/Off Control**  
+  - Single tap up: Turns Hue room **on**  
+  - Single tap down: Turns Hue room **off**  
+  - Double tap up: Turns light on to 100%  
+  - Double tap down: Turns light on to 10%  
+  - Works regardless of whether lights were last controlled by switch, app, or automation  
+  - Optional: Automatically activates a default scene when turning on  
 
 - **Unified Paddle Dimming**
   - Hold paddle: Smooth dim up/down
@@ -48,7 +50,11 @@ This repository contains **dynamic, reusable blueprints** for integrating Inovel
    - `input_number.scene_index_masterbedroom`
 3. **Add Hue Scenes to the room** in the Hue app (when you create the input number, the max number should be greater than the number of scenes you plan to have)
 4. **Add Inovelli Blue Switch** in HomeAssistant ZHA
-5. **Configure Switch** in HomeAssistant - enable the Smart Bulb feature 
+5. **Configure Switch in HomeAssistant**
+   - Enable the Smart Bulb feature  
+   - Enable Double tap up  
+   - Enable Double tap down  
+   - Set button delay to at least 1 (required for double tap)  
 5. **Import Blueprints** from this repo:
    - `hue_dimmer_zha.yaml` (automation)
    - `dim_hue_room_lights.yaml` (script)
